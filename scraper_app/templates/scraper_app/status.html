@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Scraping Status</title>
+
+    <noscript><meta http-equiv="refresh" content="10"></noscript>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        :root {
+            --bg: #0f172a;
+            --bg-grad: linear-gradient(135deg, #0f172a 0%, #1f2937 50%, #111827 100%);
+            --card-bg: #0b1220;
+            --card-border: #1f2937;
+            --muted: #94a3b8;
+            --text: #e5e7eb;
+            --accent: #60a5fa;
+            --accent-strong: #3b82f6;
+            --danger: #ef4444;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --surface: #0b1326;
+            --shadow: 0 10px 30px rgba(0,0,0,0.35);
+            --radius: 14px;
+        }
+        html, body { height: 100%; }
+        body {
+            margin: 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+            background: var(--bg-grad);
+            color: var(--text);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .page { max-width: 1200px; margin: 0 auto; padding: 28px 20px 40px; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 12px; }
+        .title { font-size: 22px; font-weight: 700; letter-spacing: 0.3px; display: flex; align-items: center; gap: 10px; }
+        .title .badge { font-size: 12px; color: var(--muted); background: rgba(148, 163, 184, 0.08); border: 1px solid var(--card-border); padding: 4px 8px; border-radius: 999px; }
+        .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .btn {
+            appearance: none; border: 1px solid var(--card-border); background: #0b1220; color: var(--text);
+            padding: 10px 14px; font-weight: 600; font-size: 14px; border-radius: 10px; cursor: pointer;
+            transition: transform .08s ease, background .2s ease, border-color .2s ease, box-shadow .2s ease;
+            text-decoration: none; display: inline-flex; align-items: center; gap: 8px;
+            box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 10px 20px rgba(0,0,0,0.15);
+        }
+        .btn:hover { background: #0f162a; border-color: #27324a; transform: translateY(-1px); }
+        .btn:active { transform: translateY(0); }
+        .btn-success { background: linear-gradient(180deg, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0.08)); border-color: rgba(34, 197, 94, 0.35); color: #d1fae5; }
+        .btn-success:hover { background: linear-gradient(180deg, rgba(34, 197, 94, 0.22), rgba(34, 197, 94, 0.12)); border-color: rgba(34, 197, 94, 0.55); }
+        .btn-danger { background: linear-gradient(180deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.08)); border-color: rgba(239, 68, 68, 0.35); color: #ffe4e6; }
+        .btn-danger:hover { background: linear-gradient(180deg, rgba(239, 68, 68, 0.22), rgba(239, 68, 68, 0.12)); border-color: rgba(239, 68, 68, 0.55); }
+        .btn-accent { background: linear-gradient(180deg, rgba(59, 130, 246, 0.18), rgba(59, 130, 246, 0.10)); border-color: rgba(59, 130, 246, 0.45); color: #dbeafe; }
+        .btn-accent:hover { background: linear-gradient(180deg, rgba(59, 130, 246, 0.25), rgba(59, 130, 246, 0.14)); border-color: rgba(59, 130, 246, 0.65); }
+        .grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 18px; }
+        @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+        .card {
+            background: radial-gradient(120% 120% at 0% 0%, rgba(59, 130, 246, .06), transparent 40%),
+                        radial-gradient(120% 120% at 100% 0%, rgba(34, 197, 94, .05), transparent 42%),
+                        var(--card-bg);
+            border: 1px solid var(--card-border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 18px 16px;
+        }
+        .card h3 { margin: 0 0 10px 0; font-size: 18px; font-weight: 700; letter-spacing: 0.25px; color: #f3f4f6; display: flex; align-items: center; gap: 10px; }
+        .subtle { font-size: 13px; color: var(--muted); }
+        .timeline { margin: 8px 0 0; list-style: none; padding: 0 6px 0 12px; max-height: 420px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #2b3550 transparent; }
+        .timeline::-webkit-scrollbar { height: 8px; width: 8px; }
+        .timeline::-webkit-scrollbar-thumb { background: #2b3550; border-radius: 8px; }
+        .timeline-item { position: relative; margin: 10px 0 10px 8px; padding: 10px 12px 10px 18px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(59, 130, 246, 0.12); border-left: 3px solid var(--accent-strong); border-radius: 10px; }
+        .timeline-item::before { content: ""; position: absolute; left: -10px; top: 14px; width: 10px; height: 10px; border-radius: 999px; background: var(--accent); box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15); }
+        .timeline-time { font-size: 12px; color: var(--muted); margin-right: 8px; }
+        .captcha-wrap { display: grid; grid-template-rows: auto 1fr auto; gap: 12px; }
+        .captcha-image { background: #0a1221; border: 1px solid var(--card-border); border-radius: 12px; padding: 12px; display: flex; align-items: center; justify-content: center; min-height: 220px; }
+        .captcha-image img { max-width: 100%; max-height: 360px; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.35); border: 1px solid rgba(148, 163, 184, 0.18); }
+        .form { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; }
+        .form .field { display: flex; flex-direction: column; gap: 6px; }
+        .label { font-size: 12px; color: var(--muted); letter-spacing: 0.3px; }
+        .input { background: #0b1326; border: 1px solid #223253; color: var(--text); border-radius: 10px; padding: 12px 12px; font-size: 15px; outline: none; transition: border-color .2s ease, box-shadow .2s ease; }
+        .input::placeholder { color: #7c8aa5; }
+        .input:focus { border-color: rgba(59, 130, 246, 0.7); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15); }
+        .note { font-size: 12px; color: var(--muted); margin-top: 2px; }
+        .refresh-controls { display: flex; align-items: center; gap: 10px; }
+        .toggle { display: inline-flex; align-items: center; gap: 8px; background: rgba(148, 163, 184, 0.08); border: 1px solid var(--card-border); color: var(--muted); padding: 8px 12px; border-radius: 999px; font-size: 12px; }
+        .pill { display: inline-flex; align-items: center; gap: 6px; background: rgba(59, 130, 246, 0.12); color: #bfdbfe; border: 1px solid rgba(59, 130, 246, 0.35); padding: 6px 10px; border-radius: 999px; font-size: 12px; }
+        .messages { margin-bottom: 14px; display: grid; gap: 8px; }
+        .msg { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--card-border); background: rgba(15, 23, 42, 0.65); font-size: 14px; }
+        .msg.success { border-color: rgba(34,197,94,0.35); background: rgba(34,197,94,0.08); color: #dcfce7; }
+        .msg.error   { border-color: rgba(239,68,68,0.35); background: rgba(239,68,68,0.08); color: #fee2e2; }
+        .msg.info    { border-color: rgba(59,130,246,0.35); background: rgba(59,130,246,0.08); color: #dbeafe; }
+        .msg.warning { border-color: rgba(245,158,11,0.35); background: rgba(245,158,11,0.08); color: #fef3c7; }
+        .empty { text-align: center; color: var(--muted); font-style: italic; background: rgba(148, 163, 184, 0.04); padding: 14px; border-radius: 10px; border: 1px solid var(--card-border); }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="header">
+            <div class="title">
+                <span>📊 Scraping Status</span>
+                <span class="badge">Live</span>
+                {% if latest_run %}
+                    <span class="badge">Run #{{ latest_run.id }}{% if latest_run.started_at %} • {{ latest_run.started_at|date:"Y-m-d H:i" }}{% endif %}</span>
+                {% endif %}
+            </div>
+
+            <div class="actions">
+                <div class="refresh-controls">
+                    <span class="toggle">
+                        <input type="checkbox" id="autoRefreshToggle" checked>
+                        <label for="autoRefreshToggle">Auto-refresh</label>
+                    </span>
+                    <span class="pill" title="Refresh interval">⏱️ 5s</span>
+                    <button type="button" class="btn btn-accent" id="refreshNow">Refresh now</button>
+                </div>
+
+                <a href="{% url 'download_excel' %}" class="btn btn-success">⬇️ Download Excel</a>
+
+                <form method="post" action="{% url 'clear_logs' %}" style="display:inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">🧹 Clear Logs</button>
+                </form>
+            </div>
+        </div>
+
+        {% if messages %}
+            <div class="messages" aria-live="polite">
+                {% for message in messages %}
+                    <div class="msg {% if message.tags %}{{ message.tags }}{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="grid">
+            <div class="card">
+                <h3>Activity Timeline</h3>
+                <div class="subtle">Latest run updates</div>
+                <ul class="timeline" aria-live="polite">
+                    {% for st in statuses %}
+                        <li class="timeline-item">
+                            <span class="timeline-time">{{ st.created_at|date:"H:i:s" }}</span>
+                            <span>{{ st.message }}</span>
+                        </li>
+                    {% empty %}
+                        <li class="empty">No updates yet — your scraping progress will appear here.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <div class="card captcha-wrap">
+                <h3>🔐 Solve Captcha</h3>
+
+                {# Prefer run-scoped captcha_status if available; fall back to 'status' for backward-compat. #}
+                {% with cs=captcha_status|default:status %}
+                    {% if cs and cs.captcha_image %}
+                        <div class="subtle">{{ cs.message }}</div>
+
+                        <div class="captcha-image">
+                            <img src="{{ cs.captcha_image.url }}{% if timestamp %}?{{ timestamp }}{% endif %}" alt="Captcha Image">
+                        </div>
+
+                        <form method="post" class="form" action="">
+                            {% csrf_token %}
+                            <div class="field">
+                                <label for="captcha_value" class="label">Enter the characters shown</label>
+                                <input
+                                    type="text"
+                                    id="captcha_value"
+                                    name="captcha_value"
+                                    class="input"
+                                    placeholder="Type captcha here"
+                                    autocomplete="off"
+                                    inputmode="text"
+                                    required
+                                >
+                                <div class="note">Tip: Auto-refresh pauses while you type to prevent losing your input.</div>
+                            </div>
+                            <button type="submit" class="btn btn-accent">✅ Submit</button>
+                        </form>
+                    {% else %}
+                        <div class="subtle">No captcha currently pending.</div>
+                        <div class="captcha-image">
+                            <div class="empty" style="width:100%">
+                                No captcha available. This panel will update automatically if one appears.
+                            </div>
+                        </div>
+                        <div class="note">You can keep this page open; it will refresh in the background.</div>
+                    {% endif %}
+                {% endwith %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            var intervalMs = 5000;
+            var toggle = document.getElementById('autoRefreshToggle');
+            var refreshBtn = document.getElementById('refreshNow');
+            var input = document.getElementById('captcha_value');
+
+            function shouldRefresh() {
+                if (!toggle || !toggle.checked) return false;
+                if (!input) return true;
+                if (document.activeElement === input) return false;
+                if (input.value && input.value.trim().length > 0) return false;
+                return true;
+            }
+
+            setInterval(function() {
+                if (shouldRefresh()) {
+                    window.location.reload();
+                }
+            }, intervalMs);
+
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', function() {
+                    window.location.reload();
+                });
+            }
+        })();
+    </script>
+</body>
+</html>

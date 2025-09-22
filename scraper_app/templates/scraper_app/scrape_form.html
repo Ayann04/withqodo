@@ -1,0 +1,532 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Scrape Sampada Data</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="{% static 'favicon.ico' %}" type="image/x-icon">
+
+    <style>
+        :root{
+            --bg: #0f172a;            /* slate-900 */
+            --bg-grad: radial-gradient(100% 100% at 0% 0%, rgba(59,130,246,0.10), transparent 45%), radial-gradient(120% 120% at 100% 0%, rgba(34,197,94,0.08), transparent 40%), #0b1220;
+            --card: #0b1220;
+            --card-2: #0b1326;
+            --border: #1f2937;        /* slate-800 */
+            --muted: #94a3b8;         /* slate-400 */
+            --text: #e5e7eb;          /* gray-200 */
+            --heading: #f3f4f6;
+            --accent: #60a5fa;        /* blue-400 */
+            --accent-strong: #3b82f6; /* blue-500 */
+            --success: #22c55e;       /* green-500 */
+            --warning: #f59e0b;       /* amber-500 */
+            --shadow: 0 14px 40px rgba(0,0,0,0.35);
+            --radius: 14px;
+            --radius-sm: 10px;
+            --input-bg: #0b1326;
+            --input-border: #223253;
+            --input-focus: rgba(59, 130, 246, 0.6);
+        }
+
+        html, body {
+            height: 100%;
+        }
+
+        body {
+            margin: 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+            color: var(--text);
+            background: var(--bg-grad);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            display: grid;
+            place-items: center;
+            padding: 22px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 940px;
+            background:
+                radial-gradient(120% 120% at 0% 0%, rgba(59, 130, 246, 0.08), transparent 40%),
+                radial-gradient(120% 120% at 100% 0%, rgba(34, 197, 94, 0.08), transparent 40%),
+                var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 26px 26px 22px;
+        }
+
+        .header {
+            display: grid;
+            gap: 4px;
+            margin-bottom: 18px;
+            text-align: center;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: .2px;
+            color: var(--heading);
+        }
+
+        .subtitle {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px 18px;
+        }
+        @media (max-width: 820px) {
+            .form-grid { grid-template-columns: 1fr; }
+        }
+
+        .form-group {
+            display: grid;
+            gap: 8px;
+        }
+
+        label {
+            color: var(--muted);
+            font-size: 13px;
+            letter-spacing: 0.2px;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        input[type="date"],
+        select {
+            background: var(--input-bg);
+            color: var(--text);
+            border: 1px solid var(--input-border);
+            border-radius: var(--radius-sm);
+            padding: 12px 12px;
+            font-size: 15px;
+            outline: none;
+            transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+        }
+
+        input::placeholder {
+            color: #7c8aa5;
+        }
+
+        input:focus,
+        select:focus {
+            border-color: var(--input-focus);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+
+        .form-actions {
+            grid-column: span 2;
+            display: grid;
+            gap: 10px;
+            justify-items: center;
+            margin-top: 6px;
+        }
+        @media (max-width: 820px) {
+            .form-actions { grid-column: span 1; }
+        }
+
+        .btn {
+            appearance: none;
+            border: 1px solid rgba(59,130,246,0.35);
+            background: linear-gradient(180deg, rgba(59, 130, 246, 0.18), rgba(59, 130, 246, 0.10));
+            color: #dbeafe;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 15px;
+            letter-spacing: .2px;
+            cursor: pointer;
+            min-width: min(420px, 100%);
+            transition: transform .08s ease, background .2s ease, border-color .2s ease, box-shadow .2s ease, opacity .2s ease;
+            box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 10px 20px rgba(0,0,0,0.18);
+            display: inline-grid;
+            grid-auto-flow: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .btn:hover {
+            background: linear-gradient(180deg, rgba(59, 130, 246, 0.25), rgba(59, 130, 246, 0.14));
+            border-color: rgba(59,130,246,0.55);
+            transform: translateY(-1px);
+        }
+        .btn:active { transform: translateY(0); }
+        .btn[disabled] {
+            opacity: .65;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .link-btn {
+            text-decoration: none;
+            background: linear-gradient(180deg, rgba(245, 158, 11, 0.18), rgba(245, 158, 11, 0.10));
+            border: 1px solid rgba(245,158,11,0.42);
+            color: #fde68a;
+        }
+        .link-btn:hover {
+            background: linear-gradient(180deg, rgba(245, 158, 11, 0.24), rgba(245, 158, 11, 0.14));
+            border-color: rgba(245,158,11,0.62);
+        }
+
+        .help {
+            margin-top: 2px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        #message {
+            margin-top: 14px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 14px;
+            border-radius: 12px;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            display: none;
+        }
+        #message.success { color: #dcfce7; border-color: rgba(34,197,94,0.35); background: rgba(34,197,94,0.08); display: block; }
+        #message.error   { color: #fee2e2; border-color: rgba(239,68,68,0.35); background: rgba(239,68,68,0.08); display: block; }
+        #message.info    { color: #dbeafe; border-color: rgba(59,130,246,0.35); background: rgba(59,130,246,0.08); display: block; }
+
+        /* Small header badge row */
+        .badge-row {
+            display: inline-grid;
+            grid-auto-flow: column;
+            gap: 8px;
+            margin-top: 6px;
+            place-items: center;
+        }
+        .badge {
+            font-size: 12px;
+            color: var(--muted);
+            background: rgba(148, 163, 184, 0.08);
+            border: 1px solid var(--border);
+            padding: 4px 8px;
+            border-radius: 999px;
+        }
+
+        /* Spinner */
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(219,234,254,0.25);
+            border-top-color: #93c5fd;
+            border-radius: 50%;
+            animation: spin 0.9s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Trigger Sampada Data Scraping</h1>
+            <div class="subtitle">Fill in your credentials and filters, then start scraping. You can watch live status in a new tab.</div>
+            <div class="badge-row">
+                <span class="badge">Secure Form</span>
+                <span class="badge">Live Status Available</span>
+            </div>
+        </div>
+
+        <form method="post" action="">
+            {% csrf_token %}
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input autocomplete="username" type="text" id="username" name="username" placeholder="Enter username" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input autocomplete="current-password" type="password" id="password" name="password" placeholder="Enter password" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="district">District</label>
+                    <select id="district" name="district" required>
+                        <option value="">-- Select District --</option>
+                        <option value="Agar Malwa">Agar Malwa</option>
+                        <option value="Alirajpur">Alirajpur</option>
+                        <option value="Anuppur">Anuppur</option>
+                        <option value="Ashoknagar">Ashoknagar</option>
+                        <option value="Balaghat">Balaghat</option>
+                        <option value="Barwani">Barwani</option>
+                        <option value="Betul">Betul</option>
+                        <option value="Bhind">Bhind</option>
+                        <option value="Bhopal">Bhopal</option>
+                        <option value="Burhanpur">Burhanpur</option>
+                        <option value="Chhatarpur">Chhatarpur</option>
+                        <option value="Chhindwara">Chhindwara</option>
+                        <option value="Damoh">Damoh</option>
+                        <option value="Datia">Datia</option>
+                        <option value="Dewas">Dewas</option>
+                        <option value="Dhar">Dhar</option>
+                        <option value="Dindori">Dindori</option>
+                        <option value="Guna">Guna</option>
+                        <option value="Gwalior">Gwalior</option>
+                        <option value="Harda">Harda</option>
+                        <option value="Indore">Indore</option>
+                        <option value="Jabalpur">Jabalpur</option>
+                        <option value="Jhabua">Jhabua</option>
+                        <option value="Katni">Katni</option>
+                        <option value="Khandwa">Khandwa</option>
+                        <option value="Khargone">Khargone</option>
+                        <option value="Mandla">Mandla</option>
+                        <option value="Mandsaur">Mandsaur</option>
+                        <option value="Morena">Morena</option>
+                        <option value="Narmadapuram">Narmadapuram</option>
+                        <option value="Niwari">Niwari</option>
+                        <option value="Panna">Panna</option>
+                        <option value="Raisen">Raisen</option>
+                        <option value="Rajgarh">Rajgarh</option>
+                        <option value="Ratlam">Ratlam</option>
+                        <option value="Rewa">Rewa</option>
+                        <option value="Sagar">Sagar</option>
+                        <option value="Satna">Satna</option>
+                        <option value="Sehore">Sehore</option>
+                        <option value="Seoni">Seoni</option>
+                        <option value="Shahdol">Shahdol</option>
+                        <option value="Shajapur">Shajapur</option>
+                        <option value="Sheopur">Sheopur</option>
+                        <option value="Shivpuri">Shivpuri</option>
+                        <option value="Sidhi">Sidhi</option>
+                        <option value="Singrauli">Singrauli</option>
+                        <option value="Tikamgarh">Tikamgarh</option>
+                        <option value="Ujjain">Ujjain</option>
+                        <option value="Umaria">Umaria</option>
+                        <option value="Vidisha">Vidisha</option>
+                    </select>
+                    <div class="help">Choose the district to query</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="deed_type">Deed Type</label>
+                    <select id="deed_type" name="deed_type" required>
+                        <option value="">-- Select Deed Type --</option>
+                        <option value="Acknowledgement of debt">Acknowledgement of debt</option>
+                        <option value="Acknowledgement of receipt of payment">Acknowledgement of receipt of payment</option>
+                        <option value="Administration Bond">Administration Bond</option>
+                        <option value="Affidavit">Affidavit</option>
+                        <option value="Agreement or Memorandum of an agreement">Agreement or Memorandum of an agreement</option>
+                        <option value="Agreement relating to Deposit of Title Deed/pawn/pledge or hypothecation">
+                            Agreement relating to Deposit of Title Deed/pawn/pledge or hypothecation
+                        </option>
+                        <option value="Agreement/Memorandum of an agreement">Agreement/Memorandum of an agreement</option>
+                        <option value="Amendment Deed/Correction Deed">Amendment Deed/Correction Deed</option>
+                        <option value="Appointment in execution of a power">Appointment in execution of a power</option>
+                        <option value="Appraisement or valuation">Appraisement or valuation</option>
+                        <option value="Apprenticeship deed">Apprenticeship deed</option>
+                        <option value="Articles of Association of a Company">Articles of Association of a Company</option>
+                        <option value="Authority to adopt">Authority to adopt</option>
+                        <option value="Award">Award</option>
+                        <option value="Award without Property">Award without Property</option>
+                        <option value="Bank Guarantee">Bank Guarantee</option>
+                        <option value="Bond">Bond</option>
+                        <option value="Bottomry Bond">Bottomry Bond</option>
+                        <option value="Cancellation deed">Cancellation deed</option>
+                        <option value="Certificate of Enrolment">Certificate of Enrolment</option>
+                        <option value="Certificate of Practice as Notary">Certificate of Practice as Notary</option>
+                        <option value="Certificate of Sale">Certificate of Sale</option>
+                        <option value="Certificate or other document">Certificate or other document</option>
+                        <option value="Charter Party">Charter Party</option>
+                        <option value="Clearance List">Clearance List</option>
+                        <option value="Composition Deed">Composition Deed</option>
+                        <option value="Consent Deed">Consent Deed</option>
+                        <option value="Conveyance">Conveyance</option>
+                        <option value="Copy or Extract">Copy or Extract</option>
+                        <option value="Counterpart or Duplicate">Counterpart or Duplicate</option>
+                        <option value="Customs Bond or Excise Bond">Customs Bond or Excise Bond</option>
+                        <option value="Declaration under Madhya Pradesh Prakoshtha Swamitva Adhiniyam, 2000">
+                            Declaration under Madhya Pradesh Prakoshtha Swamitva Adhiniyam, 2000
+                        </option>
+                        <option value="Delivery Order in Respect of goods">Delivery Order in Respect of goods</option>
+                        <option value="Divorce">Divorce</option>
+                        <option value="Entry of Certificate of marriage">Entry of Certificate of marriage</option>
+                        <option value="Exchange Deed">Exchange Deed</option>
+                        <option value="Further Charge">Further Charge</option>
+                        <option value="Gift">Gift</option>
+                        <option value="Indemnity Bond">Indemnity Bond</option>
+                        <option value="Lease Deed">Lease Deed</option>
+                        <option value="Letter of Allotment of Shares">Letter of Allotment of Shares</option>
+                        <option value="Letter of Guarantee">Letter of Guarantee</option>
+                        <option value="Letter of License">Letter of License</option>
+                        <option value="License relating to Arms or Ammunitions">
+                            License relating to Arms or Ammunitions (Arms Act,1959)
+                        </option>
+                        <option value="Memorandum of company">Memorandum of company</option>
+                        <option value="Mortgage">Mortgage</option>
+                        <option value="Mortgage of a Crop">Mortgage of a Crop</option>
+                        <option value="Notarial Act">Notarial Act</option>
+                        <option value="Note of Protest">Note of Protest</option>
+                        <option value="Note or Memorandum">Note or Memorandum</option>
+                        <option value="Partition">Partition</option>
+                        <option value="Partnership">Partnership</option>
+                        <option value="Protest of Bill or Note">Protest of Bill or Note</option>
+                        <option value="Re-conveyance of mortgage property">Re-conveyance of mortgage property</option>
+                        <option value="Release">Release</option>
+                        <option value="Respondentia Bond">Respondentia Bond</option>
+                        <option value="Security Bond Not Mortgage Deed">Security Bond Not Mortgage Deed</option>
+                        <option value="Settlement">Settlement</option>
+                        <option value="Share Warrant">Share Warrant</option>
+                        <option value="Shipping Order">Shipping Order</option>
+                        <option value="Surrender of Lease">Surrender of Lease</option>
+                        <option value="Transfer">Transfer</option>
+                        <option value="Transfer of Lease">Transfer of Lease</option>
+                        <option value="Trust">Trust</option>
+                        <option value="Warrant for Goods">Warrant for Goods</option>
+                    </select>
+                    <div class="help">Pick the deed type you want</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="date_from">Date From</label>
+                    <input type="date" id="date_from" name="date_from" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="date_to">Date To</label>
+                    <input type="date" id="date_to" name="date_to" required>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" id="scrapeBtn" class="btn">
+                        <span id="btnText">Start Scraping</span>
+                        <span id="btnSpinner" class="spinner" style="display:none"></span>
+                    </button>
+
+                    <!-- Keep original link target; adjust to your URL name if available: {% url 'get_status' %} -->
+                       <a id="linking"
+                            class="btn link-btn"
+                            href="{% url 'get_status' %}"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label="Open live scraping status in a new tab">
+                                See Your Live Status Here
+                        </a>
+                </div>
+            </div>
+        </form>
+
+        <div id="message" class="info"></div>
+    </div>
+
+    <script>
+        const usernameField = document.getElementById("username");
+        const passwordField = document.getElementById("password");
+        const districtField = document.getElementById("district");
+        const deedField = document.getElementById("deed_type");
+        const dateFromField = document.getElementById("date_from");
+        const dateToField = document.getElementById("date_to");
+        const form = document.querySelector("form");
+        const messageBox = document.getElementById("message");
+        const scrapeBtn = document.getElementById("scrapeBtn");
+        const btnText = document.getElementById("btnText");
+        const btnSpinner = document.getElementById("btnSpinner");
+
+        function formatDate(date) {
+            const d = new Date(date);
+            const month = ("0" + (d.getMonth() + 1)).slice(-2);
+            const day = ("0" + d.getDate()).slice(-2);
+            return `${d.getFullYear()}-${month}-${day}`;
+        }
+
+        function showMessage(text, type = "info") {
+            messageBox.className = type;
+            messageBox.textContent = text;
+            messageBox.style.display = "block";
+        }
+
+        function setLoading(loading) {
+            if (loading) {
+                scrapeBtn.setAttribute("disabled", "disabled");
+                btnSpinner.style.display = "inline-block";
+                btnText.textContent = "Scraping Started...";
+            } else {
+                scrapeBtn.removeAttribute("disabled");
+                btnSpinner.style.display = "none";
+                btnText.textContent = "Start Scraping";
+            }
+        }
+
+        window.addEventListener("load", () => {
+            const savedUsername = localStorage.getItem("username");
+            const savedPassword = localStorage.getItem("password");
+            const savedDateFrom = localStorage.getItem("date_from");
+            const savedDateTo = localStorage.getItem("date_to");
+
+            if (savedUsername) usernameField.value = savedUsername;
+            if (savedPassword) passwordField.value = savedPassword;
+
+            const today = new Date();
+            const lastWeek = new Date();
+            lastWeek.setDate(today.getDate() - 7);
+
+            dateFromField.value = savedDateFrom || formatDate(lastWeek);
+            dateToField.value = savedDateTo || formatDate(today);
+
+            districtField.value = districtField.value || "Indore";
+            deedField.value = deedField.value || "Conveyance";
+        });
+
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            // Simple date validation
+            if (dateFromField.value && dateToField.value) {
+                const from = new Date(dateFromField.value);
+                const to = new Date(dateToField.value);
+                if (from > to) {
+                    showMessage("Date From cannot be after Date To.", "error");
+                    return;
+                }
+            }
+
+            setLoading(true);
+
+            // Persist recent values
+            localStorage.setItem("username", usernameField.value);
+            localStorage.setItem("password", passwordField.value);
+            localStorage.setItem("date_from", dateFromField.value);
+            localStorage.setItem("date_to", dateToField.value);
+
+            try {
+                const formData = new FormData(form);
+                const response = await fetch(form.action || window.location.href, {
+                    method: "POST",
+                    headers: {
+                        "X-CSRFToken": document.querySelector('[name="csrfmiddlewaretoken"]').value,
+                    },
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Request failed (${response.status})`);
+                }
+
+                // Expecting JSON: { message: "..." }
+                const data = await response.json();
+                if (data && data.message) {
+                    showMessage(data.message, "success");
+                } else {
+                    showMessage("Scrape triggered. Check live status for updates.", "success");
+                }
+            } catch (err) {
+                console.error(err);
+                showMessage("Something went wrong while starting the scraping. Please try again.", "error");
+            } finally {
+                setLoading(false);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: django-selenium-sqlite
+    env: docker
+    plan: free
+    dockerfilePath: ./dockerfile
+    envVars:
+      - key: PORT
+        value: 8000

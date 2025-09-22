@@ -1,0 +1,385 @@
+
+import time
+import re
+import os
+import easyocr  
+from openpyxl import Workbook, load_workbook
+from django.shortcuts import render
+from django.http import JsonResponse
+from selenium.webdriver.support.ui import Select
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.common.keys import Keys
+from PIL import Image
+from io import BytesIO
+
+
+def parse_address(addr):
+    parsed = {}
+    patterns = {
+        "Ward/Colony": r"Ward Colony\s*-\s*([^,\.]+)",
+        "District": r"Distirct:?\s*([^,\.]+)",
+        "Village": r"Village:?\s*([^,\.]+)",
+        "Sub-Area/Road": r"Sub-Area\s*:?\s*([^,\.]+)",
+        "Tehsil/Locality": r"Tehsil:?\s*([^,\.]+)",
+        "PIN Code": r"pin-?(\d{6})",
+        "Landmark": r"(\d+\s*m\s+from\s+[^p]+)",
+    }
+
+    for key, pattern in patterns.items():
+        match = re.search(pattern, addr, re.IGNORECASE)
+        if match:
+            parsed[key] = match.group(1) or (match.group(2) if match.lastindex and match.lastindex >= 2 else '')
+        else:
+            parsed[key] = ""
+
+    parsed["State"] = "Madhya Pradesh" if "Madhya Pradesh" in addr else ""
+    parsed["Country"] = "India" if "India" in addr else ""
+    return parsed
+
+def write_single_row_to_excel(file_path, all_sections):
+    combined_data = {}
+
+    for headings, data_texts in all_sections:
+        for heading, value in zip(headings, data_texts):
+            unique_heading = heading
+            i = 1
+            while unique_heading in combined_data:
+                unique_heading = f"{heading}_{i}"
+                i += 1
+            combined_data[unique_heading] = value
+
+    if os.path.exists(file_path):
+        wb = load_workbook(file_path)
+        ws = wb.active
+    else:
+        wb = Workbook()
+        ws = wb.active
+
+    existing_headings = [cell.value for cell in ws[1] if cell.value is not None]
+    if not existing_headings:
+        for col_num, heading in enumerate(combined_data.keys(), start=1):
+            ws.cell(row=1, column=col_num, value=heading)
+        existing_headings = list(combined_data.keys())
+
+    heading_to_col = {heading: idx + 1 for idx, heading in enumerate(existing_headings)}
+    next_row = ws.max_row + 1 if any(cell.value for cell in ws[ws.max_row]) else ws.max_row
+
+    for heading, value in combined_data.items():
+        col = heading_to_col.get(heading)
+        if col is None:
+            col = len(existing_headings) + 1
+            ws.cell(row=1, column=col, value=heading)
+            heading_to_col[heading] = col
+            existing_headings.append(heading)
+        ws.cell(row=next_row, column=col, value=value)
+
+    wb.save(file_path)
+
+
+def trigger_scrape(request):
+    if request.method == 'POST':
+        chrome_options = Options()
+        chrome_options.add_argument("--start-maximized")
+        service = Service() 
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+        
+        try:
+            username = request.POST.get('username')
+            password = request.POST.get('password')
+            district = request.POST.get('district')
+            deed_type = request.POST.get('deed_type')
+
+            driver.get("https://sampada.mpigr.gov.in/#/clogin")
+            time.sleep(5)
+            english_to = driver.find_elements(By.CSS_SELECTOR,'div.ng-star-inserted>a')
+            english_to[2].click()
+        
+            max_attempts = 10
+            login_success = False
+            
+            for attempt in range(max_attempts):
+                try:    
+                    driver.refresh()
+                    time.sleep(10) 
+                    username_input= driver.find_element(By.CSS_SELECTOR, "input#username")
+                    username_input.send_keys(username)
+                    time.sleep(2)
+                    
+                    password_input= driver.find_element(By.CSS_SELECTOR, "input#password")
+                    password_input.send_keys(password)
+                    
+                    time.sleep(10)
+                    #captcha resolving  1
+                    elem = driver.find_element(By.CSS_SELECTOR, "div.input-group>img")
+                    # Scroll into view to ensure visibility
+                    driver.execute_script("arguments[0].scrollIntoView(true);", elem)
+                    time.sleep(1)
+
+                    # --- Get device pixel ratio ---
+                    device_pixel_ratio = driver.execute_script("return window.devicePixelRatio")
+
+                    # --- Take full-page screenshot ---
+                    png = driver.get_screenshot_as_png()
+                    image = Image.open(BytesIO(png))
+
+                    # --- Get element coordinates and size ---
+                    location = elem.location_once_scrolled_into_view
+                    size = elem.size
+
+                    left = int(location['x'] * device_pixel_ratio)
+                    top = int(location['y'] * device_pixel_ratio)
+                    right = int((location['x'] + size['width']) * device_pixel_ratio)
+                    bottom = int((location['y'] + size['height']) * device_pixel_ratio)
+
+                    # --- Crop and save ---
+                    cropped_image = image.crop((left, top, right, bottom))
+                    cropped_image.save("captcha_element_precise.png")
+
+                    reader = easyocr.Reader(['en'])
+                    result = reader.readtext('captcha_element_precise.png')
+                    
+                    for detection in result:
+                        result_1 = detection[1]  
+                    result_2 = result_1.upper()
+                    cleaned = result_2.replace(" ", "")
+                    print(cleaned)
+                    time.sleep(10)
+                    captcha_input= driver.find_elements(By.CSS_SELECTOR, "div.input-group>input")
+                    time.sleep(2)
+                    captcha_input[2].click()
+                    time.sleep(3)
+                    captcha_input[2].send_keys(cleaned)
+                    login_button = driver.find_elements(By.CSS_SELECTOR,'button.mat-focus-indicator')
+                    before_url = driver.current_url
+                    # Click the login button
+                    login_button[1].click()
+
+                    # Wait for URL to change (meaning navigation occurred)
+                    WebDriverWait(driver, 15).until(EC.url_changes(before_url))
+
+                    # Optional: Add a brief wait to allow page content to load
+                    time.sleep(2)
+
+                    # Check again if URL really changed
+                    after_url = driver.current_url
+                    if after_url != before_url:
+                        login_success = True
+                        break
+                    
+                except:
+                    continue
+            if not login_success:
+                driver.quit()
+                return JsonResponse({"message": "Login CAPTCHA solving failed after multiple attempts."}, status=500)
+            
+            WebDriverWait(driver, 60).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, 'h5.my-0')))
+            search_certified = driver.find_elements(By.CSS_SELECTOR, 'li.ng-star-inserted>a')
+            time.sleep(5)
+            if len(search_certified) > 2:
+                search_certified[2].click()
+            else:
+                print("Element at index 2 not found in search_certified.")
+                driver.quit()
+                return JsonResponse({"message": "Scraping failed: Initial elements not found."}, status=500)
+            WebDriverWait(driver, 60).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, 'div.apex-item-option')))
+            
+            # captch resolving   2
+            captcha_success = False
+            for retry in range(max_attempts):
+                try:
+                    driver.refresh()
+                    time.sleep(10) 
+                    other_details = driver.find_elements(By.CSS_SELECTOR, 'div.apex-item-option')
+                    if len(other_details) > 2:
+                        other_details[2].click()
+                    else:
+                        print("Element at index 2 not found in other_details.")
+                        driver.quit()
+                        return JsonResponse({"message": "Scraping failed: Other details elements not found."}, status=500)
+                    
+                    WebDriverWait(driver, 60).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, 'div.form-check-inline')))
+                    period = driver.find_elements(By.CSS_SELECTOR,"div.form-check-inline")
+                    if len(period) > 2:
+                        period[0].click()
+                    else:
+                        print("Element at index 2 not found in other_details.")
+                        driver.quit()
+                        return JsonResponse({"message": "Scraping failed: Other details elements not found."}, status=500)
+                    
+                    WebDriverWait(driver, 60).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, 'select#P2000_DISTRICT')))
+                    element = driver.find_element(By.CSS_SELECTOR, 'select#P2000_DISTRICT')
+                    select_districts = Select(element)
+                    select_districts.select_by_visible_text(district)
+                    
+                    time.sleep(5)
+                    input_box = driver.find_element(By.XPATH, "//input[@aria-autocomplete='list']")
+                    input_box.send_keys(deed_type)
+                    time.sleep(5)
+                    input_box.send_keys(Keys.ENTER)
+                    print('taking image')
+                    time.sleep(10)
+                    captcha= driver.find_elements(By.CSS_SELECTOR, "div.input-group>img")
+                    captcha_img = captcha[1]
+                    time.sleep(2)
+                    driver.execute_script("arguments[0].scrollIntoView(true);", captcha_img)
+                    time.sleep(2)
+    
+                    # Get DPR
+                    dpr = driver.execute_script("return window.devicePixelRatio")
+    
+                    # Take full screenshot
+                    screenshot_png = driver.get_screenshot_as_png()
+                    image = Image.open(BytesIO(screenshot_png))
+                    img_width, img_height = image.size
+    
+                    # Get CAPTCHA location and size
+                    location = captcha_img.location_once_scrolled_into_view
+                    size = captcha_img.size
+    
+                    # Calculate safe crop box
+                    left = max(0, int(location['x'] * dpr))
+                    top = max(0, int(location['y'] * dpr))
+                    right = min(img_width, int((location['x'] + size['width']) * dpr))
+                    bottom = min(img_height, int((location['y'] + size['height']) * dpr))
+    
+                    # Debug print (optional)
+                    print(f"Image size: {img_width}x{img_height}")
+                    print(f"Crop box: left={left}, top={top}, right={right}, bottom={bottom}")
+    
+                    # Crop and save CAPTCHA
+                    captcha_image = image.crop((left, top, right, bottom))
+                    captcha_image.save("captcha_only.png")
+                    print("✅ CAPTCHA saved as captcha_only.png")
+
+                    reader_1 = easyocr.Reader(['en'])
+                    result = reader_1.readtext('captcha_only.png')
+                    
+                    for detection in result:
+                        result_1 = detection[1]  
+                    result_2 = result_1.upper()
+                    cleaned = result_2.replace(" ", "")
+                    print(cleaned)
+                    time.sleep(5)
+                    captcha_input= driver.find_elements(By.CSS_SELECTOR, "div.input-group>input")
+                    time.sleep(2)
+                    captcha_input[1].click()
+                    time.sleep(3)
+                    captcha_input[1].send_keys(cleaned)
+                    time.sleep(3)
+                    search_button = driver.find_elements(By.CSS_SELECTOR,'div>button.btn')
+                    search_button[4].click()    
+                     # Wait for an element that only appears after login
+                    WebDriverWait(driver, 15).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "td.mat-cell>span.link"))  #  update if needed
+                    )
+
+                    login_success = True
+                    break
+                except:
+                    continue
+            if not login_success:
+                driver.quit()
+                return JsonResponse({"message": "Login CAPTCHA solving failed after multiple attempts."}, status=500)
+            
+            WebDriverWait(driver, 60).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, 'td.mat-cell>span.link')))
+            time.sleep(3)
+            arrow_button = driver.find_element(By.CSS_SELECTOR,'div.mat-select-arrow')
+            arrow_button.click()
+            time.sleep(2)
+            select_100 = driver.find_elements(By.XPATH,"//mat-option[.//span[contains(text(), '100')]]")
+            select_100[0].click()
+            time.sleep(50)
+            # WebDriverWait(driver, 60).until(
+            #         EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'td.mat-cell>span.link')))
+            data_elements = driver.find_elements(By.CSS_SELECTOR, 'td.mat-cell>span.link')
+            time.sleep(10)
+            for i in range(len(data_elements)):
+                data_elements_2 = WebDriverWait(driver, 60).until(
+                    EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'td.mat-cell>span.link')))
+
+                if i < len(data_elements_2):
+                    span = data_elements_2[i]
+                    span.click()
+                    time.sleep(10) 
+                    print("Now on page:", driver.current_url)
+
+                    Registration_details_data = driver.find_elements(By.XPATH, "//fieldset[legend[contains(text(), 'Registration Details')]]/div/table/tbody/tr/td")
+                    Registration_details_heading = driver.find_elements(By.XPATH, "//fieldset[legend[contains(text(), 'Registration Details')]]/div/table/thead/tr/th")
+                    headings = [th.text.strip() for th in Registration_details_heading]
+                    data_texts = [td.text.strip() for td in Registration_details_data]
+
+                    seller_data = driver.find_elements(By.XPATH, '//fieldset[legend[contains(text(), "Party From")]]/div/table/tbody/tr/td')
+                    seller_heading = driver.find_elements(By.XPATH, "//fieldset[legend[contains(text(), 'Party From')]]/div/table/thead/tr/th")
+                    headings_2 = [th.text.strip() for th in seller_heading]
+                    data_texts_2 = [td.text.strip() for td in seller_data]
+
+                    buyer_data = driver.find_elements(By.XPATH, "//fieldset[legend[contains(text(), 'Party To')]]/div/table/tbody/tr/td")
+                    buyer_heading = driver.find_elements(By.XPATH, "//fieldset[legend[contains(text(), 'Party To')]]/div/table/thead/tr/th")
+                    headings_3 = [th.text.strip() for th in buyer_heading]
+                    data_texts_3 = [td.text.strip() for td in buyer_data]
+
+                    property_details = driver.find_elements(By.XPATH, "//fieldset[legend[contains(text(), 'Property Details')]]/div/table/tbody/tr/td")
+                    property_heading = driver.find_elements(By.XPATH, "//fieldset[legend[contains(text(), 'Property Details')]]/div/table/thead/tr/th")
+                    headings_4 = [th.text.strip() for th in property_heading]
+                    data_texts_4 = [td.text.strip() for td in property_details]
+
+                    khasra_building_plot_details = driver.find_elements(By.XPATH, "//fieldset[legend[contains(text(), 'Khasra/Building/Plot Details')]]/div/table/tbody/tr/td")
+                    khasra_heading = driver.find_elements(By.XPATH, "//fieldset[legend[contains(text(), 'Khasra/Building/Plot Details')]]/div/table/thead/tr/th")
+                    headings_5 = [th.text.strip() for th in khasra_heading]
+                    data_texts_5 = [td.text.strip() for td in khasra_building_plot_details]
+
+                    final_data_texts_4 = []
+                    for heading_100, data in zip(headings_4, data_texts_4):
+                        if "address" in heading_100.lower():
+                            parsed_addr = parse_address(data)
+                            for k, v in parsed_addr.items():
+                                final_data_texts_4.append((k, v))
+                        else:
+                            final_data_texts_4.append((heading_100, data))
+
+                    headings_4_parsed = [h for h, v in final_data_texts_4]
+                    data_texts_4_parsed = [v for h, v in final_data_texts_4]
+
+                    all_sections = [
+                        (headings, data_texts),
+                        (headings_2, data_texts_2),
+                        (headings_3, data_texts_3),
+                        (headings_4_parsed, data_texts_4_parsed),
+                        (headings_5, data_texts_5),
+                    ]
+
+                  
+                    excel_file_path = os.path.join(os.getcwd(), "sampada_data.xlsx")
+                    write_single_row_to_excel(excel_file_path, all_sections)
+
+                    data_elements_200 = WebDriverWait(driver, 60).until(
+                        EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'button.colsebtn')))
+                    if len(data_elements_200) > 1:
+                        data_elements_200[1].click()
+                    else:
+                        print("Close button at index 1 not found.")
+                    time.sleep(10) 
+                else:
+                    print(f"Skipping index {i} as element is not present after re-finding.")
+                    break
+
+            return JsonResponse({"message": "Scraping completed successfully! Check filelatest.xlsx"})
+
+        except Exception as e:
+            print(f"An error occurred during scraping: {e}")
+            return JsonResponse({"message": f"Scraping failed: {e}"}, status=500)
+        finally:
+            driver.quit()
+
+    return render(request, 'scraper_app/scrape_form.html')
